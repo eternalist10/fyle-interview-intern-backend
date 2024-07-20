@@ -1,4 +1,5 @@
-from core.models.assignments import AssignmentStateEnum, GradeEnum
+from core.models.assignments import AssignmentStateEnum, GradeEnum, Assignment
+from core import db
 
 
 def test_get_assignments(client, h_principal):

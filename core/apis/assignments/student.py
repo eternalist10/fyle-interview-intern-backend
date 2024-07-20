@@ -2,7 +2,8 @@ from flask import Blueprint
 from core import db
 from core.apis import decorators
 from core.apis.responses import APIResponse
-from core.models.assignments import Assignment
+from core.models.assignments import Assignment, AssignmentStateEnum
+from core.libs.exceptions import FyleError
 
 from .schema import AssignmentSchema, AssignmentSubmitSchema
 student_assignments_resources = Blueprint('student_assignments_resources', __name__)
@@ -21,14 +22,20 @@ def list_assignments(p):
 @decorators.accept_payload
 @decorators.authenticate_principal
 def upsert_assignment(p, incoming_payload):
-    """Create or Edit an assignment"""
-    assignment = AssignmentSchema().load(incoming_payload)
-    assignment.student_id = p.student_id
+    try:
+        """Create or Edit an assignment"""
+        assignment = AssignmentSchema().load(incoming_payload)
+        if (assignment.content is None):
+            raise FyleError(status_code=400, message="Content can't be null")
+        assignment.student_id = p.student_id
 
-    upserted_assignment = Assignment.upsert(assignment)
-    db.session.commit()
-    upserted_assignment_dump = AssignmentSchema().dump(upserted_assignment)
-    return APIResponse.respond(data=upserted_assignment_dump)
+        upserted_assignment = Assignment.upsert(assignment)
+        db.session.commit()
+        upserted_assignment_dump = AssignmentSchema().dump(upserted_assignment)
+        return APIResponse.respond(data=upserted_assignment_dump)
+    
+    except FyleError as e:
+        return APIResponse.respond(data=e.to_dict()), e.status_code
 
 
 @student_assignments_resources.route('/assignments/submit', methods=['POST'], strict_slashes=False)
@@ -43,6 +50,7 @@ def submit_assignment(p, incoming_payload):
         teacher_id=submit_assignment_payload.teacher_id,
         auth_principal=p
     )
+    
     db.session.commit()
     submitted_assignment_dump = AssignmentSchema().dump(submitted_assignment)
     return APIResponse.respond(data=submitted_assignment_dump)
